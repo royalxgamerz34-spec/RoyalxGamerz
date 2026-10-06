@@ -1,67 +1,68 @@
-const crypto = require("crypto");
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 const PRODUCTS = {
-  1: { name: "Minecraft Reel Bundle", amount: 4900 },
-  2: { name: "3000+ Roblox Content Bundle", amount: 4900 },
-  3: { name: "1000+ Minecraft Shorts Bundle", amount: 4900 },
-  4: { name: "1000+ Cartoon Reels Bundle", amount: 4900 }
+  "1": 4900,
+  "2": 4900,
+  "3": 4900,
+  "4": 4900
 };
 
-const ALLOWED_ORIGIN =
-  process.env.ALLOWED_ORIGIN ||
-  "https://royalxgamerz34-spec.github.io";
-
-module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+function cors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "https://royalxgamerz34-spec.github.io");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+module.exports = async (req, res) => {
+  cors(res);
 
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed"
+    });
   }
 
   try {
-    const { productId } = req.body || {};
-    const product = PRODUCTS[Number(productId)];
-
-    if (!product) {
-      return res.status(400).json({ error: "Invalid product" });
-    }
-
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!keyId || !keySecret) {
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
       return res.status(500).json({
-        error: "Razorpay environment variables are missing"
+        success: false,
+        error: "Razorpay server configuration missing"
       });
     }
 
-    const receipt =
-      "rxg_" +
-      Date.now() +
-      "_" +
-      crypto.randomBytes(4).toString("hex");
+    const productId = String(req.body?.productId || "");
 
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    if (!PRODUCTS[productId]) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid product"
+      });
+    }
+
+    const amount = PRODUCTS[productId];
+
+    const auth = Buffer
+      .from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`)
+      .toString("base64");
 
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
-        Authorization: `Basic ${auth}`,
+        "Authorization": `Basic ${auth}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        amount: product.amount,
+        amount: amount,
         currency: "INR",
-        receipt,
+        receipt: `rg_${productId}_${Date.now()}`,
         notes: {
-          product_id: String(productId),
-          product_name: product.name
+          product_id: productId
         }
       })
     });
@@ -70,19 +71,20 @@ module.exports = async (req, res) => {
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: data.error?.description || "Unable to create Razorpay order"
+        success: false,
+        error: data?.error?.description || "Unable to create payment order"
       });
     }
 
     return res.status(200).json({
+      success: true,
       order_id: data.id,
       amount: data.amount,
       currency: data.currency,
-      key_id: keyId
+      key_id: RAZORPAY_KEY_ID
     });
+
   } catch (error) {
     return res.status(500).json({
-      error: "Server error"
-    });
-  }
-};
+      success: false,
+      error: "
