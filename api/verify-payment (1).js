@@ -15,10 +15,12 @@ function setCors(res) {
     "Access-Control-Allow-Origin",
     "https://royalxgamerz34-spec.github.io"
   );
+
   res.setHeader(
     "Access-Control-Allow-Methods",
     "POST, OPTIONS"
   );
+
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type"
@@ -50,61 +52,4 @@ module.exports = async (req, res) => {
     const {
       productId,
       orderId,
-      paymentId,
-      signature
-    } = req.body || {};
-
-    if (!productId || !orderId || !paymentId || !signature) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing payment details"
-      });
-    }
-
-    const expectedSignature = crypto
-      .createHmac("sha256", RAZORPAY_KEY_SECRET)
-      .update(`${orderId}|${paymentId}`)
-      .digest("hex");
-
-    if (
-      expectedSignature.length !== signature.length ||
-      !crypto.timingSafeEqual(
-        Buffer.from(expectedSignature, "utf8"),
-        Buffer.from(signature, "utf8")
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        verified: false,
-        error: "Payment verification failed"
-      });
-    }
-
-    const downloadUrl = DOWNLOAD_LINKS[String(productId)];
-
-    if (!downloadUrl) {
-      return res.status(400).json({
-        success: false,
-        verified: false,
-        error: "Download is not available for this product"
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      verified: true,
-      message: "Payment verified successfully",
-      downloadUrl: downloadUrl,
-      download_url: downloadUrl
-    });
-
-  } catch (error) {
-    console.error("VERIFY PAYMENT ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      verified: false,
-      error: "Server error during payment verification"
-    });
-  }
-};
+      paymentId
