@@ -4,19 +4,23 @@ const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 const DOWNLOAD_LINKS = {
   "1": "https://drive.google.com/drive/folders/1UNr_ILE9j64CSufw2VlJrsdkcwRrAKWN",
-  "2": "https://drive.google.com/drive/folders/15vNNWLdMR6929lYaiNvlj83xd3xOFueO",
-  "3": "https://drive.google.com/drive/folders/1uSMAA-5gJdVFRgT_YzmQb4HV3UXR8piv"
+  "2": "https://drive.google.com/drive/folders/1rtLg7zeFo4K_Ex8KSyRBIwsYyObro7Ur",
+  "3": "https://drive.google.com/drive/folders/1uSMAA-5gJdVFRgT_YzmQb4HV3UXR8piv",
+  "4": "https://drive.google.com/drive/folders/1KFbmudOh1uQ5BdIdzvCikdg4GrW7RiIe",
+  "5": "https://drive.google.com/drive/folders/15vNNWLdMR6929lYaiNvlj83xd3xOFueO"
 };
 
-function cors(res) {
+function setCors(res) {
   res.setHeader(
     "Access-Control-Allow-Origin",
     "https://royalxgamerz34-spec.github.io"
   );
+
   res.setHeader(
     "Access-Control-Allow-Methods",
     "POST, OPTIONS"
   );
+
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type"
@@ -24,7 +28,7 @@ function cors(res) {
 }
 
 module.exports = async (req, res) => {
-  cors(res);
+  setCors(res);
 
   if (req.method === "OPTIONS") {
     return res.status(204).end();
@@ -64,14 +68,13 @@ module.exports = async (req, res) => {
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    const valid =
-      expectedSignature.length === signature.length &&
-      crypto.timingSafeEqual(
-        Buffer.from(expectedSignature),
-        Buffer.from(signature)
-      );
-
-    if (!valid) {
+    if (
+      expectedSignature.length !== signature.length ||
+      !crypto.timingSafeEqual(
+        Buffer.from(expectedSignature, "utf8"),
+        Buffer.from(signature, "utf8")
+      )
+    ) {
       return res.status(400).json({
         success: false,
         error: "Payment verification failed"
@@ -81,23 +84,24 @@ module.exports = async (req, res) => {
     const downloadUrl = DOWNLOAD_LINKS[String(productId)];
 
     if (!downloadUrl) {
-      return res.status(200).json({
-        success: true,
-        message: "Payment verified successfully",
-        downloadUrl: null
+      return res.status(400).json({
+        success: false,
+        error: "Download is not available for this product"
       });
     }
 
     return res.status(200).json({
       success: true,
       message: "Payment verified successfully",
-      downloadUrl
+      downloadUrl: downloadUrl
     });
 
   } catch (error) {
+    console.error("VERIFY PAYMENT ERROR:", error);
+
     return res.status(500).json({
       success: false,
-      error: "Server verification error"
+      error: "Server error during payment verification"
     });
   }
 };
