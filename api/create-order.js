@@ -9,11 +9,17 @@ const PRODUCTS = {
   "5": 4900
 };
 
-function cors(res) {
-  res.setHeader(
-    "Access-Control-Allow-Origin",
+function cors(res, req) {
+  const allowedOrigins = [
+    "https://royalxgamerz.vercel.app",
     "https://royalxgamerz34-spec.github.io"
-  );
+  ];
+
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
 
   res.setHeader(
     "Access-Control-Allow-Methods",
@@ -27,7 +33,7 @@ function cors(res) {
 }
 
 module.exports = async (req, res) => {
-  cors(res);
+  cors(res, req);
 
   if (req.method === "OPTIONS") {
     return res.status(204).end();
