@@ -1,32 +1,30 @@
 const crypto = require("crypto");
 
-const PRODUCTS = {
-  1: {
-    name: "Minecraft Reel Bundle",
-    link: "https://drive.google.com/drive/folders/1UNr_ILE9j64CSufw2VlJrsdkcwRrAKWN"
-  },
-  2: {
-    name: "3000+ Roblox Content Bundle",
-    link: "https://drive.google.com/drive/folders/REPLACE_PRODUCT_2_LINK"
-  },
-  3: {
-    name: "1000+ Minecraft Shorts Bundle",
-    link: "https://drive.google.com/drive/folders/REPLACE_PRODUCT_3_LINK"
-  },
-  4: {
-    name: "1000+ Cartoon Reels Bundle",
-    link: "https://drive.google.com/drive/folders/REPLACE_PRODUCT_4_LINK"
-  }
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+const DOWNLOAD_LINKS = {
+  "1": "https://drive.google.com/drive/folders/1UNr_ILE9j64CSufw2VlJrsdkcwRrAKWN",
+  "2": "https://drive.google.com/drive/folders/15vNNWLdMR6929lYaiNvlj83xd3xOFueO",
+  "3": "https://drive.google.com/drive/folders/1uSMAA-5gJdVFRgT_YzmQb4HV3UXR8piv"
 };
 
-const ALLOWED_ORIGIN =
-  process.env.ALLOWED_ORIGIN ||
-  "https://royalxgamerz34-spec.github.io";
+function cors(res) {
+  res.setHeader(
+    "Access-Control-Allow-Origin",
+    "https://royalxgamerz34-spec.github.io"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "POST, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type"
+  );
+}
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  cors(res);
 
   if (req.method === "OPTIONS") {
     return res.status(204).end();
@@ -34,11 +32,19 @@ module.exports = async (req, res) => {
 
   if (req.method !== "POST") {
     return res.status(405).json({
+      success: false,
       error: "Method not allowed"
     });
   }
 
   try {
+    if (!RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        success: false,
+        error: "Payment verification is not configured"
+      });
+    }
+
     const {
       productId,
       orderId,
@@ -46,53 +52,52 @@ module.exports = async (req, res) => {
       signature
     } = req.body || {};
 
-    const product = PRODUCTS[Number(productId)];
-
-    if (!product) {
+    if (!productId || !orderId || !paymentId || !signature) {
       return res.status(400).json({
-        error: "Invalid product"
-      });
-    }
-
-    if (!orderId || !paymentId || !signature) {
-      return res.status(400).json({
+        success: false,
         error: "Missing payment details"
       });
     }
 
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!secret) {
-      return res.status(500).json({
-        error: "Razorpay secret is missing"
-      });
-    }
-
-    const body = `${orderId}|${paymentId}`;
-
     const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(body)
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    const isValid =
+    const valid =
       expectedSignature.length === signature.length &&
       crypto.timingSafeEqual(
         Buffer.from(expectedSignature),
         Buffer.from(signature)
       );
 
-    if (!isValid) {
+    if (!valid) {
       return res.status(400).json({
+        success: false,
         error: "Payment verification failed"
       });
     }
 
+    const downloadUrl = DOWNLOAD_LINKS[String(productId)];
+
+    if (!downloadUrl) {
+      return res.status(200).json({
+        success: true,
+        message: "Payment verified successfully",
+        downloadUrl: null
+      });
+    }
+
     return res.status(200).json({
-      verified: true,
+      success: true,
       message: "Payment verified successfully",
-      product: product.name,
-      download_url: product.link
+      downloadUrl
     });
 
-  } catch (error)
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: "Server verification error"
+    });
+  }
+};
