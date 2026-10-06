@@ -1,5 +1,118 @@
-const crypto=require('crypto');
-const PRODUCTS={1:{name:'Minecraft Reel Bundle',link:'https://drive.google.com/drive/folders/1UNr_ILE9j64CSufw2VlJrsdkcwRrAKWN'},2:{name:'3000+ Roblox Content Bundle',link:''},3:{name:'Stop Challenge Reels',link:'https://drive.google.com/drive/folders/1uSMAA-5gJdVFRgT_YzmQb4HV3UXR8piv'},4:{name:'Mega Spiderman Reel Bundle',link:'https://drive.google.com/drive/folders/1KFbmudOh1uQ5BdIdzvCikdg4GrW7RiIe'},5:{name:'2000+ AI Baby Reels Bundle',link:'https://drive.google.com/drive/folders/15vNNWLdMR6929lYaiNvlj83xd3xOFueO'}}
-const ORIGIN=process.env.ALLOWED_ORIGIN||'https://royalxgamerz34-spec.github.io';
-function headers(){return {'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type','Vary':'Origin'}}
-module.exports=async(req,res)=>{Object.entries(headers()).forEach(([k,v])=>res.setHeader(k,v));if(req.method==='OPTIONS')return res.status(204).end();if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});if(!process.env.RAZORPAY_KEY_SECRET)return res.status(500).json({error:'Razorpay secret is not configured'});try{const {productId,orderId,paymentId,signature}=req.body||{};const p=PRODUCTS[Number(productId)];if(!p||!orderId||!paymentId||!signature)return res.status(400).json({error:'Missing payment details'});if(!p.link)return res.status(500).json({error:'Download link for this product is not configured yet'});const expected=crypto.createHmac('sha256',process.env.RAZORPAY_KEY_SECRET).update(`${orderId}|${paymentId}`).digest('hex');const a=Buffer.from(expected),b=Buffer.from(String(signature));const verified=a.length===b.length&&crypto.timingSafeEqual(a,b);if(!verified)return res.status(400).json({verified:false,error:'Invalid payment signature'});return res.status(200).json({verified:true,download_url:p.link,product:p.name})}catch(e){return res.status(500).json({error:'Payment verification failed'})}};
+const crypto = require("crypto");
+
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+const DOWNLOAD_LINKS = {
+  "1": "https://drive.google.com/drive/folders/1UNr_ILE9j64CSufw2VlJrsdkcwRrAKWN",
+  "2": "https://drive.google.com/drive/folders/1rtLg7zeFo4K_Ex8KSyRBIwsYyObro7Ur",
+  "3": "https://drive.google.com/drive/folders/1uSMAA-5gJdVFRgT_YzmQb4HV3UXR8piv",
+  "4": "https://drive.google.com/drive/folders/1KFbmudOh1uQ5BdIdzvCikdg4GrW7RiIe",
+  "5": "https://drive.google.com/drive/folders/15vNNWLdMR6929lYaiNvlj83xd3xOFueO"
+};
+
+function setCors(res, req) {
+  const allowedOrigins = [
+    "https://royalxgamerz.vercel.app",
+    "https://royalxgamerz34-spec.github.io"
+  ];
+
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "POST, OPTIONS"
+  );
+
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type"
+  );
+}
+
+module.exports = async (req, res) => {
+  setCors(res, req);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed"
+    });
+  }
+
+  try {
+    if (!RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({
+        success: false,
+        error: "Payment verification is not configured"
+      });
+    }
+
+    const {
+      productId,
+      orderId,
+      paymentId,
+      signature
+    } = req.body || {};
+
+    if (!productId || !orderId || !paymentId || !signature) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing payment details"
+      });
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex");
+
+    if (
+      expectedSignature.length !== signature.length ||
+      !crypto.timingSafeEqual(
+        Buffer.from(expectedSignature, "utf8"),
+        Buffer.from(signature, "utf8")
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: "Payment verification failed"
+      });
+    }
+
+    const downloadUrl = DOWNLOAD_LINKS[String(productId)];
+
+    if (!downloadUrl) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: "Download is not available for this product"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      verified: true,
+      message: "Payment verified successfully",
+      downloadUrl: downloadUrl,
+      download_url: downloadUrl
+    });
+
+  } catch (error) {
+    console.error("VERIFY PAYMENT ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      verified: false,
+      error: "Server error during payment verification"
+    });
+  }
+};
